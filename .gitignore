@@ -1,0 +1,10 @@
+/__pycache__
+/bot
+/build
+/temp
+*.c
+*.rar
+*.jpg
+*.exe
+*.html
+
