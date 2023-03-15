@@ -42,6 +42,18 @@ Watch the following video to see the bot in action:
 
 https://user-images.githubusercontent.com/78639550/225330750-d877a4cf-8dda-4dcf-9b6c-3c035333fe6a.mp4
 
+
+## Python Chess Server (Optional) `bot_server.py`
+_This Python code is designed to run as a server on a cloud computer with an open port. The server takes a chessboard position in Forsyth–Edwards Notation (FEN) as input and returns the best move back to the client using sockets. This feature is useful in offloading the computational load from the client, allowing the bot to run on old devices without any performance issues._
+
+The code uses the  `socket` module to create a `socket` object and bind it to a specific `address` and `port`. It also uses the `chess` and `chess.engine` modules to calculate the best move. The requests module is used to fetch data from the cloud API(Endgame Tablebase), and the `json` module is used to decode the JSON response.
+
+The `no_of_pieces` variable is used to count the number of pieces on the board. If there are less than 8 pieces on the board, the code fetches the best move from the cloud API. Otherwise, it uses the engine object to calculate the best move based on the given `time control` or `depth`.
+
+Finally, the `server` object listens for incoming client connections and spawns a new thread to handle each connection. The `threading` module is used to create a new `thread` for each client connection. The code prints information about each client connection, including the client's IP address and the total number of active connections.
+
+_Overall, this code provides a simple and efficient way to run a chess bot on a cloud server and offload the computational load from the client._
+
 ## Conclusion
 This OpenCV-based Python chess bot provides a simple yet effective way to automate the playing of chess on a computer. It is easy to use and supports any UCI chess engine. Additionally, the remote version of the bot allows users to offload the computation to a cloud server, making it possible to run
 
