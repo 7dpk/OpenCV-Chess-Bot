@@ -474,18 +474,18 @@ def play_move(move, are_we_white, board_cordinate, bit_board, old_img):
     e1, e2 = find_square_center(
         end, are_we_white, board_cordinate[0], board_cordinate[1], board_cordinate[2], board_cordinate[3])
     # pyautogui.moveTo(s1, s2, 0.1,  pyautogui.easeInQuad)
-    pyautogui.moveTo(s1, s2)
-    pyautogui.mouseDown()
-    time.sleep(0.02)
-    pyautogui.mouseUp()
+    # pyautogui.moveTo(s1, s2)
+    # pyautogui.mouseDown()
+    # time.sleep(0.02)
+    # pyautogui.mouseUp()
     # pyautogui.move(e1, e2, duration=0.1)
     # time.sleep(0.05)
-    pyautogui.moveTo(e1, e2)
-    pyautogui.mouseDown()
-    time.sleep(0.02)
-    pyautogui.mouseUp()
-    # pyautogui.click(s1, s2)
-    # pyautogui.click(e1, e2)
+    # pyautogui.moveTo(e1, e2)
+    # pyautogui.mouseDown()
+    # time.sleep(0.02)
+    # pyautogui.mouseUp()
+    pyautogui.click(s1, s2)
+    pyautogui.click(e1, e2)
     # pausing some time for animation to take place
     # dist = np.sqrt((e1-s1)**2 + (e2-s1)**2)
     # time.sleep((dist/30)*0.03)
@@ -545,7 +545,7 @@ def play_move(move, are_we_white, board_cordinate, bit_board, old_img):
     #     # # time.sleep(0.5)
     #     # pyautogui.click(e1, e2)
     #     np.copyto(old_img, cv2.cvtColor(dshot.screenshot(
-    #         region=board_cordinate), cv2.COLOR_RGB2GRAY))
+    ##         region=board_cordinate), cv2.COLOR_RGB2GRAY))
     #     return old_img
     return old_img
 
@@ -705,7 +705,7 @@ def play(board, engine, thread, hash, depth, time_control, play_by_depth):
             our_turn = False
             # print("We moved:" + m)
         while 1:
-            time.sleep(0.08)
+            time.sleep(0.02)
             flag = 0
             # new_img = np.array(sct.grab(board_img))
             new_img = dshot.screenshot(region=board_cordinate)
@@ -713,7 +713,7 @@ def play(board, engine, thread, hash, depth, time_control, play_by_depth):
             # new_img = cv2.resize(new_img, (800, 800), interpolation=cv2.INTER_AREA)
 
             if board_changed(old_img, new_img):
-                time.sleep(0.03)
+                time.sleep(0.01)
                 break
             else:
                 moves = validate_board(old_img, board, are_we_white)
@@ -725,7 +725,7 @@ def play(board, engine, thread, hash, depth, time_control, play_by_depth):
         while 1:
             if flag:
                 break
-            time.sleep(0.09)
+            time.sleep(0.02)
             curr_img = dshot.screenshot(region=board_cordinate)
             curr_img = cv2.cvtColor(curr_img, cv2.COLOR_RGB2GRAY)
             # curr_img = cv2.resize(curr_img, (800, 800),
@@ -767,7 +767,7 @@ if __name__ == '__main__':
     ram = 128
     depth = 12
     play_by_depth_bool = False
-    time_control = 5
+    time_control = 2
     import configparser
     engine = chess.engine.SimpleEngine.popen_uci('stockfish')
     parser = configparser.ConfigParser()

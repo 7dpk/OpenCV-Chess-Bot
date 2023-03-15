@@ -544,7 +544,7 @@ def play_move(move, are_we_white, board_cordinate, bit_board, old_img):
     #     # # time.sleep(0.5)
     #     # pyautogui.click(e1, e2)
     #     np.copyto(old_img, cv2.cvtColor(dshot.screenshot(
-    #         region=board_cordinate), cv2.COLOR_RGB2GRAY))
+    ##         region=board_cordinate), cv2.COLOR_RGB2GRAY))
     #     return old_img
     return old_img
 
@@ -783,7 +783,7 @@ def play(board, engine, thread, hash, depth, time_control, play_by_depth, online
 if __name__ == '__main__':
     import socket
     ADDR = ('65.0.181.232', 6751)
-    try:
+    try:    
         online_engine = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         online_engine.connect(ADDR)
     except ConnectionRefusedError:
