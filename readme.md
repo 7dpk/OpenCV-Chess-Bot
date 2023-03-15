@@ -40,7 +40,7 @@ In the remote version of the bot, the client sends the screenshot of the chessbo
 ## Video Demo
 Watch the following video to see the bot in action:
 
-![OpenCV Chess Bot Video](https://user-images.githubusercontent.com/78639550/225330750-d877a4cf-8dda-4dcf-9b6c-3c035333fe6a.mp4)
+https://user-images.githubusercontent.com/78639550/225330750-d877a4cf-8dda-4dcf-9b6c-3c035333fe6a.mp4
 
 ## Conclusion
 This OpenCV-based Python chess bot provides a simple yet effective way to automate the playing of chess on a computer. It is easy to use and supports any UCI chess engine. Additionally, the remote version of the bot allows users to offload the computation to a cloud server, making it possible to run
