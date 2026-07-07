@@ -42,12 +42,10 @@ Thumbs.db
 # ML datasets and training artifacts
 captures/
 dataset/
-models/
- 
+
  # Common ML model files
  *.pt
  *.pth
- *.onnx
  *.torchscript.pt
  *.ckpt
  *.h5
