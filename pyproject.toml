@@ -17,7 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 windows = ["dxcam>=0.0.5; sys_platform == 'win32'"]
-training = ["torch>=2.1", "cairosvg>=2.7", "pillow>=10.0", "requests>=2.31"]
+training = ["torch>=2.1", "onnx>=1.15", "cairosvg>=2.7", "pillow>=10.0", "requests>=2.31"]
 dev = ["pytest>=8.0"]
 
 [project.scripts]
