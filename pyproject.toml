@@ -24,7 +24,7 @@ dev = ["pytest>=8.0"]
 chessbot = "chessbot.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["chessbot*"]
+include = ["chessbot*", "training*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
