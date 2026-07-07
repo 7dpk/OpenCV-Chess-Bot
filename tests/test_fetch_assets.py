@@ -1,3 +1,6 @@
+import sys
+
+import training.fetch_assets as fetch_assets_module
 from training.fetch_assets import (
     CHESSCOM_PIECE_SETS,
     LICHESS_PIECE_SETS,
@@ -39,3 +42,19 @@ def test_lichess_board_url():
         lichess_board_url("wood.jpg")
         == "https://raw.githubusercontent.com/lichess-org/lila/master/public/images/board/wood.jpg"
     )
+
+
+def test_main_survives_total_download_failure(tmp_path, monkeypatch):
+    """main() must not crash with FileNotFoundError when every download fails
+    and dest/lichess is never created."""
+    empty_dest = tmp_path / "assets"
+
+    def fake_fetch_all(dest):
+        assert dest == empty_dest
+        return {"lichess": 0, "chesscom": 0, "boards": 0, "failed": 999}
+
+    monkeypatch.setattr(fetch_assets_module, "fetch_all", fake_fetch_all)
+    monkeypatch.setattr(sys, "argv", ["fetch_assets.py", "--dest", str(empty_dest)])
+
+    assert not (empty_dest / "lichess").exists()
+    fetch_assets_module.main()  # should not raise

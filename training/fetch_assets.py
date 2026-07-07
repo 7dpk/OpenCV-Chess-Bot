@@ -80,11 +80,14 @@ def main() -> None:
     args = parser.parse_args()
     counts = fetch_all(args.dest)
     print(counts)
-    incomplete = [
-        d.name
-        for d in (args.dest / "lichess").iterdir()
-        if d.is_dir() and len(list(d.glob("*.svg"))) != 12
-    ]
+    lichess_dir = args.dest / "lichess"
+    incomplete = []
+    if lichess_dir.is_dir():
+        incomplete = [
+            d.name
+            for d in lichess_dir.iterdir()
+            if d.is_dir() and len(list(d.glob("*.svg"))) != 12
+        ]
     if incomplete:
         print(f"warning: incomplete lichess sets (will be skipped in training): {incomplete}")
 
