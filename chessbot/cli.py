@@ -1,5 +1,7 @@
 import argparse
+import os
 import sys
+from pathlib import Path
 
 import chess
 
@@ -71,32 +73,43 @@ def cmd_play(args) -> None:
     timing_mode, timing_window = resolve_timing(args)
 
     model_path = args.model or settings.model_path
+    if not Path(model_path).exists():
+        raise FileNotFoundError(
+            f"piece model not found at {model_path}; pass --model or train one (see training/)"
+        )
+
+    recognizer = Recognizer(model_path=model_path)
     capturer = get_capturer(args.capture)
-    if args.remote:
-        from .engine.remote import RemoteEngine
-
-        host, _, port = args.remote.partition(":")
-        engine = RemoteEngine(host, int(port or 6751))
-    else:
-        engine = EngineClient(find_engine(args.engine), settings.threads, settings.hash_mb)
-    turn_arg = None
-    if args.turn:
-        turn_arg = chess.WHITE if args.turn == "white" else chess.BLACK
-
-    session = GameSession(
-        capturer=capturer,
-        engine=engine,
-        book=Book(settings.book_path),
-        recognizer=Recognizer(model_path=model_path),
-        mouse=Mouse(scale=capturer.scale),
-        depth_mode=args.depth_mode,
-        depth=settings.depth,
-        move_time=settings.move_time,
-        timing_mode=timing_mode,
-        timing_window=timing_window,
-        turn_arg=turn_arg,
-    )
     try:
+        if args.remote:
+            from .engine.remote import RemoteEngine
+
+            host, _, port = args.remote.partition(":")
+            engine = RemoteEngine(host, int(port or 6751))
+        else:
+            engine = EngineClient(find_engine(args.engine), settings.threads, settings.hash_mb)
+    except BaseException:
+        capturer.close()
+        raise
+
+    try:
+        turn_arg = None
+        if args.turn:
+            turn_arg = chess.WHITE if args.turn == "white" else chess.BLACK
+
+        session = GameSession(
+            capturer=capturer,
+            engine=engine,
+            book=Book(settings.book_path),
+            recognizer=recognizer,
+            mouse=Mouse(scale=capturer.scale),
+            depth_mode=args.depth_mode,
+            depth=settings.depth,
+            move_time=settings.move_time,
+            timing_mode=timing_mode,
+            timing_window=timing_window,
+            turn_arg=turn_arg,
+        )
         session.run()
     finally:
         engine.close()
@@ -106,7 +119,7 @@ def cmd_play(args) -> None:
 def cmd_server(args) -> None:
     from .engine.server import serve
 
-    threads = args.threads or max(1, (__import__("os").cpu_count() or 2) - 1)
+    threads = args.threads or max(1, (os.cpu_count() or 2) - 1)
     engine = EngineClient(find_engine(args.engine), threads, args.hash)
     try:
         serve(engine, args.host, args.port)

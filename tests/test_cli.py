@@ -1,6 +1,7 @@
 import pytest
 
-from chessbot.cli import build_parser, resolve_timing
+import chessbot.cli as cli
+from chessbot.cli import build_parser, main, resolve_timing
 
 
 def test_play_defaults():
@@ -51,3 +52,27 @@ def test_resolve_timing_invalid(flags):
     args = build_parser().parse_args(["play", *flags])
     with pytest.raises(SystemExit):
         resolve_timing(args)
+
+
+def test_play_missing_model_exits_before_engine_spawn(monkeypatch):
+    capturer_calls = []
+    engine_calls = []
+
+    def fake_get_capturer(backend):
+        capturer_calls.append(backend)
+        raise AssertionError("get_capturer should not be called when the model is missing")
+
+    class FakeEngineClient:
+        def __init__(self, *args, **kwargs):
+            engine_calls.append((args, kwargs))
+            raise AssertionError("EngineClient should not be instantiated when the model is missing")
+
+    monkeypatch.setattr(cli, "get_capturer", fake_get_capturer)
+    monkeypatch.setattr(cli, "EngineClient", FakeEngineClient)
+
+    with pytest.raises(SystemExit) as excinfo:
+        main(["play", "--model", "/nonexistent/model.onnx"])
+
+    assert "/nonexistent/model.onnx" in str(excinfo.value)
+    assert engine_calls == []
+    assert capturer_calls == []
