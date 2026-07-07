@@ -30,6 +30,20 @@ class FakeRecognizer:
         return self.grid, np.full((8, 8), self.confidence, np.float32)
 
 
+class SequenceRecognizer:
+    """Stateful recognizer fake: replays a fixed sequence of (grid, confidence) results,
+    then repeats the last one indefinitely."""
+
+    def __init__(self, results):
+        self._results = list(results)
+        self._index = 0
+
+    def classify_squares(self, board_img):
+        grid, confidence = self._results[min(self._index, len(self._results) - 1)]
+        self._index += 1
+        return grid, np.full((8, 8), confidence, np.float32)
+
+
 class FakeEngine:
     def __init__(self, moves):
         self.moves = list(moves)

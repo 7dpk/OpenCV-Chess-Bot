@@ -93,7 +93,7 @@ class GameSession:
         while not board.is_game_over():
             if board.turn == our_color:
                 move = self._choose_move(board, total_moves)
-                old = self._execute_move(move, old)
+                old = self._execute_move(move)
                 board.push(chess.Move.from_uci(move))
                 total_moves += 1
                 self.log(f"We played {move}")
@@ -138,7 +138,7 @@ class GameSession:
             self.depth += 1
             self.log(f"Depth increased to {self.depth}")
 
-    def _execute_move(self, move: str, old):
+    def _execute_move(self, move: str):
         self.mouse.play_move(move, self.white_at_bottom, self.region)
         deadline = time.time() + 5.0
         start_rc = square_name_to_row_col(move[:2], self.white_at_bottom)
@@ -171,14 +171,23 @@ class GameSession:
                 new = current
                 continue
             moves = move_detect.find_candidate_moves(old, current, self.white_at_bottom, board)
-            if moves:
+            if len(moves) == 1:
                 return ("move", moves[0], current)
             stable_misses += 1
             if stable_misses > 40:
                 return ("resync", self._resync())
 
-    def _resync(self) -> chess.Board:
+    def _resync(self, attempts: int = 30, wait: float = 0.5) -> chess.Board:
         our_color = chess.WHITE if self.white_at_bottom else chess.BLACK
-        img = self.capturer.grab(self.region)
-        grid, _ = self.recognizer.classify_squares(img)
-        return grid_to_board(grid, self.white_at_bottom, our_color)
+        for _ in range(attempts):
+            img = self.capturer.grab(self.region)
+            grid, confidence = self.recognizer.classify_squares(img)
+            if float(confidence.min()) < self.confidence_floor:
+                self.log(f"Re-sync attempt failed: confidence {confidence.min():.2f} below floor")
+            else:
+                try:
+                    return grid_to_board(grid, self.white_at_bottom, our_color)
+                except ValueError as exc:
+                    self.log(f"Re-sync attempt failed: {exc}")
+            time.sleep(wait)
+        raise RuntimeError("could not re-sync position from screen")

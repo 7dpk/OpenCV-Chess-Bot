@@ -4,7 +4,7 @@ import pytest
 
 from chessbot.game import BoardNotFound, GameSession
 from chessbot.vision.position import board_to_grid, start_grid
-from fakes import FakeBook, FakeCapturer, FakeEngine, FakeMouse, FakeRecognizer
+from fakes import FakeBook, FakeCapturer, FakeEngine, FakeMouse, FakeRecognizer, SequenceRecognizer
 
 
 def make_session(grid, turn_arg=None, confidence=0.99, confirm=None, engine=None):
@@ -98,3 +98,41 @@ def test_choose_move_timing_engine_mode_caps_movetime():
     session.timing_window = (0.0, 0.0)
     session._choose_move(chess.Board(), total_moves=6)
     assert engine.calls[0]["move_time"] == 0.0
+
+
+def _grid_missing_white_king():
+    grid = [row[:] for row in start_grid(True)]
+    grid[7][4] = "empty"  # e1, where the white king starts
+    return grid
+
+
+def test_resync_retries_past_invalid_grid(monkeypatch):
+    monkeypatch.setattr("chessbot.game.time.sleep", lambda *_: None)
+    good_grid = start_grid(True)
+    session, _ = make_session(good_grid)
+    session.recognizer = SequenceRecognizer(
+        [(_grid_missing_white_king(), 0.99), (good_grid, 0.99)]
+    )
+    board = session._resync()
+    assert board.board_fen() == chess.Board().board_fen()
+
+
+def test_resync_raises_after_exhausting_attempts(monkeypatch):
+    monkeypatch.setattr("chessbot.game.time.sleep", lambda *_: None)
+    session, _ = make_session(start_grid(True))
+    session.recognizer = SequenceRecognizer([(_grid_missing_white_king(), 0.99)])
+    with pytest.raises(RuntimeError):
+        session._resync()
+
+
+def test_await_opponent_rejects_ambiguous_candidates(monkeypatch):
+    monkeypatch.setattr("chessbot.game.time.sleep", lambda *_: None)
+    monkeypatch.setattr(
+        "chessbot.game.move_detect.find_candidate_moves",
+        lambda *a, **k: ["a1a2", "a1a3"],
+    )
+    session, _ = make_session(start_grid(True))
+    session.capturer = FakeCapturer(np.full((512, 512, 3), 200, np.uint8))
+    old = np.full((512, 512), 50, np.uint8)
+    result = session._await_opponent(chess.Board(), old)
+    assert result[0] == "resync"
