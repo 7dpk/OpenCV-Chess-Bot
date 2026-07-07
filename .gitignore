@@ -38,11 +38,11 @@ Thumbs.db
 
 # Environment/version managers
 .python-version
- 
- # ML datasets and training artifacts
- captures/
- dataset/
- models/
+
+# ML datasets and training artifacts
+captures/
+dataset/
+models/
  
  # Common ML model files
  *.pt
@@ -62,3 +62,7 @@ mlruns/
 checkpoints/
 logs/
 outputs/
+
+# Downloaded training assets and generated datasets
+training/assets/
+training/dataset/

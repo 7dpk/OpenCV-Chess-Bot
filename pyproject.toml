@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chessbot"
+version = "2.0.0"
+description = "Screen-reading chess bot: board detection, piece recognition, UCI engine play"
+requires-python = ">=3.10"
+dependencies = [
+    "opencv-python>=4.8",
+    "numpy>=1.24",
+    "chess>=1.10",
+    "pyautogui>=0.9.54",
+    "mss>=9.0",
+]
+
+[project.optional-dependencies]
+windows = ["dxcam>=0.0.5; sys_platform == 'win32'"]
+training = ["torch>=2.1", "cairosvg>=2.7", "pillow>=10.0", "requests>=2.31"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+chessbot = "chessbot.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["chessbot*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
