@@ -31,6 +31,66 @@ $ pip install opencv-python pyautogui numpy d3dshot python-chess
 5. You can edit the parameters of the bot i.e. `threads`, `ram`, `time` & `depth` from `default.ini` settings file
 6. Since the promotion to the pieces differ you can tweak a bit of the code to promote to any piece and give the signal back to work so that it continues playing.
 
+### New: User-controlled per-move timing window (offline)
+You can now specify exactly how long each move should take using a random time chosen uniformly between a minimum and maximum (inclusive). This is configured via command-line flags when launching the offline bot.
+
+Modes:
+- delay: engine thinks normally; after deciding a move, the bot waits the chosen random time before playing it (human-like pacing).
+- engine: the engine’s movetime is set to the chosen random time; the move is played immediately when the engine returns.
+- both: the engine is limited to the chosen random time, and the bot also waits any remaining time so that the visible move timing equals the chosen random time.
+
+Flags (bot-offline.py):
+```cmd
+# Choose mode and window [min, max] seconds
+python bot-offline.py --timing-mode delay --timing-min 5 --timing-max 10
+python bot-offline.py --timing-mode engine --timing-min 5 --timing-max 10
+python bot-offline.py --timing-mode both   --timing-min 5 --timing-max 10
+```
+
+Notes:
+- timing-min and timing-max must be provided together, with 0 ≤ min ≤ max.
+- If --timing-mode is omitted, the bot behaves as before.
+- With depth mode enabled (see below), engine time cannot be capped; in that case:
+  - delay: sleeps the chosen time after the engine returns.
+  - both: behaves the same as delay (engine time not capped in depth mode).
+
+Examples:
+```cmd
+# Human-like pacing, engine not constrained:
+python bot-offline.py --timing-mode delay --timing-min 0.8 --timing-max 2.2
+
+# Force engine to think between 5–10 seconds per move:
+python bot-offline.py --timing-mode engine --timing-min 5 --timing-max 10
+
+# Ensure the move appears exactly after a random time in the window:
+python bot-offline.py --timing-mode both --timing-min 5 --timing-max 10
+```
+
+Classical control still supported:
+```cmd
+# Use a classical control to derive per-move seconds (40/Xu):
+python bot-offline.py --tc "40/5m"            # 5 minutes for 40 moves
+python bot-offline.py --tc "40/300s"          # 300 seconds for 40 moves
+python bot-offline.py --tc "40/0.5h"          # 0.5 hours for 40 moves
+# Combine with timing window (engine/both replace movetime with sampled t; delay only affects outward pacing):
+python bot-offline.py --tc "40/5m" --timing-mode both --timing-min 3 --timing-max 7
+```
+
+Depth mode:
+```cmd
+# Force depth mode (ignores per-move time, but delay/both will still wait after move decision):
+python bot-offline.py --depth-mode --depth 14 --timing-mode delay --timing-min 1 --timing-max 2
+```
+
+Other useful overrides:
+```cmd
+# Adjust engine resources
+python bot-offline.py --threads 2 --hash 256
+
+# Override depth used in depth mode
+python bot-offline.py --depth 16
+```
+
 ## How the bot works
 The bot uses OpenCV to detect the chessboard on the screen. It first captures a screenshot of the screen using d3dshot or MSS, depending on the operating system. It then applies a series of image processing techniques to detect the corners of the chessboard.
 
@@ -55,7 +115,7 @@ Finally, the `server` object listens for incoming client connections and spawns 
 _Overall, this code provides a simple and efficient way to run a chess bot on a cloud server and offload the computational load from the client._
 
 ## Conclusion
-This OpenCV-based Python chess bot provides a simple yet effective way to automate the playing of chess on a computer. It is easy to use and supports any UCI chess engine. Additionally, the remote version of the bot allows users to offload the computation to a cloud server, making it possible to run
+This OpenCV-based Python chess bot provides a simple yet effective way to automate the playing of chess on a computer. It is easy to use and supports any UCI chess engine. Additionally, the remote version of the bot allows users to offload the computation to a cloud server, making it possible to run.
 
 ## Todos
 - [x] Add chessbooks to save time/resources initially.

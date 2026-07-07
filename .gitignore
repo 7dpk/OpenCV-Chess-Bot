@@ -1,10 +1,64 @@
-/__pycache__
-/bot
-/build
-/temp
-*.c
-*.rar
-*.jpg
-*.exe
-*.html
+# Python virtual environments
+.venv/
+.venv*
+venv/
+ENV/
+.env/
 
+# Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Python tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# IDE/editor
+.idea/
+.vscode/
+*.code-workspace
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Environment/version managers
+.python-version
+ 
+ # ML datasets and training artifacts
+ captures/
+ dataset/
+ models/
+ 
+ # Common ML model files
+ *.pt
+ *.pth
+ *.onnx
+ *.torchscript.pt
+ *.ckpt
+ *.h5
+ *.tflite
+ *.pb
+
+# Common training run directories
+runs/
+wandb/
+lightning_logs/
+mlruns/
+checkpoints/
+logs/
+outputs/

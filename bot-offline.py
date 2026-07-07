@@ -1,6 +1,6 @@
 import time
 import os
-from cv2 import cv2
+import cv2
 import chess
 import chess.variant
 import chess.engine
@@ -13,6 +13,8 @@ import chess.polyglot
 import d3dshot
 import subprocess
 from datetime import datetime
+import argparse
+from typing import Optional, Tuple
 
 dshot = d3dshot.create(capture_output="numpy")
 
@@ -233,7 +235,7 @@ def detect_chessboard_corners(img_arr_gray, noise_threshold=8000):
                 sub_seqs_y[j][0]-corners[0]-dy, sub_seqs_x[i][0]-corners[1]-dx,
                 sub_seqs_y[j][-1]-corners[0] +
                 dy, sub_seqs_x[i][-1]-corners[1]+dx
-            ], dtype=np.int)
+            ], dtype=int)
 
             # Generate crop candidate, nearest pixel is fine for correlation check
             sub_img = gray_img_crop.crop(sub_corners).resize((64, 64))
@@ -587,10 +589,28 @@ def no_pieces(board):
     return n
 
 
-def play(board, engine, thread, hash, depth, time_control, play_by_depth):
+def play(board, engine, thread, hash, depth, time_control, play_by_depth, timing_mode: Optional[str] = None, timing_window: Optional[Tuple[float, float]] = None):
+    """
+    timing_mode: None | 'delay' | 'engine' | 'both'
+    timing_window: (min_sec, max_sec) inclusive window for per-move timing when timing_mode is not None
+    """
+    def _sample_timing() -> float:
+        if not timing_window:
+            return 0.0
+        mn, mx = timing_window
+        # inclusive uniform sample
+        return random.uniform(mn, mx)
+
+    def _sleep_until(start_ts: float, target_sec: float):
+        # simple sleep for now; could be chunked if we later add aborts
+        elapsed = time.time() - start_ts
+        remaining = target_sec - elapsed
+        if remaining > 0:
+            time.sleep(remaining)
+
     '''licensing stuffs'''
     # id = str(subprocess.check_output('wmic csproduct get uuid')
-    #          ).split('\\r\\n')[1].strip('\\r').strip()
+    #          ).split('\r\n')[1].strip('\r').strip()
     # if id == '7DF9B3C2-168F-E911-8102-80E82C904838':
     #     print('Device Verified')
     # else:
@@ -670,13 +690,24 @@ def play(board, engine, thread, hash, depth, time_control, play_by_depth):
             m = False
             if total_moves < 5:
                 m = book_move(book, board)
+            # Decide target timing for this move if enabled
+            chosen_t = _sample_timing() if timing_mode else 0.0
+            if timing_mode:
+                print(f'[timing] mode={timing_mode} chosen={chosen_t:.3f}s')
+
             if m:
+                # For book move, optionally delay before executing (delay/both)
+                if timing_mode in ('delay', 'both'):
+                    time.sleep(max(0.0, chosen_t))
                 old_img = play_move(
                     m, are_we_white, board_cordinate, bit_board, old_img)
                 print('Book Move...', str(m))
                 total_moves += 1
             else:
+                # Engine move
                 if play_by_depth:
+                    # Depth mode: cannot time-cap engine; may apply outward delay later
+                    start_ts = time.time()
                     m = str(engine.play(board, chess.engine.Limit(
                         depth=depth), ponder=False).move)
                     piece = no_pieces(board)
@@ -685,9 +716,25 @@ def play(board, engine, thread, hash, depth, time_control, play_by_depth):
                             depth_control = piece
                             depth += 1
                             print('depth changed to after capture... ', depth)
+                    # If delay or both, after decision ensure visible pacing equals chosen_t
+                    if timing_mode in ('delay', 'both'):
+                        _sleep_until(start_ts, chosen_t)
                 else:
+                    # Time mode: if timing_mode is engine/both, replace time_control with chosen_t
+                    if timing_mode in ('engine', 'both'):
+                        effective_time = max(0.0, chosen_t)
+                    else:
+                        effective_time = time_control
+                    start_ts = time.time()
                     m = str(engine.play(board, chess.engine.Limit(
-                        time=time_control), ponder=False).move)
+                        time=effective_time), ponder=False).move)
+                    # If 'both', wait any remaining to reach chosen_t visible delay
+                    if timing_mode == 'both':
+                        _sleep_until(start_ts, chosen_t)
+                    # If 'delay' only, delay after decision with chosen_t (not engine limited)
+                    elif timing_mode == 'delay':
+                        _sleep_until(start_ts, chosen_t)
+
                 total_moves += 1
                 print("Engine Move... ", m)
                 old_img = play_move(
@@ -696,21 +743,14 @@ def play(board, engine, thread, hash, depth, time_control, play_by_depth):
             #old_img = np.array(old_img)
             if board.is_game_over():
                 os._exit(1)
-            # pyautogui.mouseUp()
-            # old_img = cv2.cvtColor(old_img, cv2.COLOR_RGB2GRAY)
-            # old_img = cv2.resize(old_img, (800, 800), interpolation=cv2.INTER_AREA)
             board.push_san(board.san(chess.Move.from_uci(m)))
             print_board(board, are_we_white)
-            #print_bit_board(bit_board, are_we_white)
             our_turn = False
-            # print("We moved:" + m)
         while 1:
             time.sleep(0.02)
             flag = 0
-            # new_img = np.array(sct.grab(board_img))
             new_img = dshot.screenshot(region=board_cordinate)
             new_img = cv2.cvtColor(new_img, cv2.COLOR_RGB2GRAY)
-            # new_img = cv2.resize(new_img, (800, 800), interpolation=cv2.INTER_AREA)
 
             if board_changed(old_img, new_img):
                 time.sleep(0.01)
@@ -728,10 +768,6 @@ def play(board, engine, thread, hash, depth, time_control, play_by_depth):
             time.sleep(0.02)
             curr_img = dshot.screenshot(region=board_cordinate)
             curr_img = cv2.cvtColor(curr_img, cv2.COLOR_RGB2GRAY)
-            # curr_img = cv2.resize(curr_img, (800, 800),
-            #                       interpolation=cv2.INTER_AREA)
-            # cv2.imwrite('curr.jpg', curr_img)
-            # cv2.imwrite('old.jpg', old_img)
             if not board_changed(curr_img, new_img):
                 moves = find_possible_moves(
                     old_img, curr_img, are_we_white, board)
@@ -756,7 +792,6 @@ def play(board, engine, thread, hash, depth, time_control, play_by_depth):
                     else:
                         board.push_san(board.san(m))
                     print_board(board, are_we_white)
-                    #print_bit_board(bit_board, are_we_white)
                     our_turn = True
                 if board.is_game_over():
                     os._exit(1)
@@ -767,9 +802,94 @@ if __name__ == '__main__':
     ram = 128
     depth = 12
     play_by_depth_bool = False
-    time_control = 2
+    time_control = 2.0  # default per-move seconds
     import configparser
-    engine = chess.engine.SimpleEngine.popen_uci('stockfish')
+
+    # CLI: classical time control --tc "40/X[m|s|h]" (default unit minutes if no suffix)
+    # Examples:
+    #   py -3.8 bot-offline.py --tc "40/5m"
+    #   py -3.8 bot-offline.py --tc "40/300s"
+    #   py -3.8 bot-offline.py --tc "40/0.5h"
+    #   py -3.8 bot-offline.py --tc "40/5"   (interpreted as minutes)
+    def _parse_tc(tc_str: str) -> float:
+        """
+        Parse classical time control string '40/Xu' into per-move seconds for the first 40 moves.
+        Supported units: s (seconds), m (minutes), h (hours). If unit omitted, minutes are assumed.
+        Returns a float seconds-per-move.
+        Raises ValueError on malformed input.
+        """
+        s = tc_str.strip().lower()
+        if '/' not in s:
+            raise ValueError("Time control must be in form 40/X[unit], e.g., 40/5m or 40/300s")
+        left, right = s.split('/', 1)
+        try:
+            moves = int(left)
+        except ValueError:
+            raise ValueError("Left side must be integer number of moves, e.g., 40")
+        if moves != 40:
+            raise ValueError("Only '40/X' is supported for now (40 moves in X time)")
+
+        # Determine unit
+        unit = None
+        if right.endswith('ms'):
+            # allow milliseconds explicitly
+            unit = 'ms'
+            val_str = right[:-2]
+        elif right.endswith('s'):
+            unit = 's'
+            val_str = right[:-1]
+        elif right.endswith('m'):
+            unit = 'm'
+            val_str = right[:-1]
+        elif right.endswith('h'):
+            unit = 'h'
+            val_str = right[:-1]
+        else:
+            # default: minutes
+            unit = 'm'
+            val_str = right
+
+        try:
+            total = float(val_str)
+        except ValueError:
+            raise ValueError("Right side must be a number, e.g., 5, 300, 0.5")
+
+        if total <= 0:
+            raise ValueError("Total time must be > 0")
+
+        # Convert to seconds
+        if unit == 'ms':
+            total_seconds = total / 1000.0
+        elif unit == 's':
+            total_seconds = total
+        elif unit == 'm':
+            total_seconds = total * 60.0
+        elif unit == 'h':
+            total_seconds = total * 3600.0
+        else:
+            # Fallback should never hit
+            total_seconds = total * 60.0
+
+        # Simple allocation: equal per-move budget for first 40 moves
+        per_move_seconds = total_seconds / 40.0
+        return per_move_seconds
+
+    # argparse for CLI overrides
+    ap = argparse.ArgumentParser(description="Offline chess bot with optional classical time control (40/X) and user-defined per-move timing window.")
+    ap.add_argument("--tc", type=str, help='Classical control "40/Xu" (u=s|m|h|ms). Default unit minutes if omitted, e.g., 40/5')
+    ap.add_argument("--depth-mode", action="store_true", help="Force play-by-depth mode regardless of time control")
+    ap.add_argument("--threads", type=int, help="Override engine threads")
+    ap.add_argument("--hash", type=int, help="Override engine hash (MB)")
+    ap.add_argument("--depth", type=int, help="Override search depth when in depth mode")
+    # New timing flags
+    ap.add_argument("--timing-mode", choices=["delay", "engine", "both"], help="Apply per-move timing: delay (sleep before move), engine (limit engine movetime), both (limit engine and ensure visible delay)")
+    ap.add_argument("--timing-min", type=float, help="Minimum seconds per move (inclusive) for timing window")
+    ap.add_argument("--timing-max", type=float, help="Maximum seconds per move (inclusive) for timing window")
+    args, unknown = ap.parse_known_args()
+
+    # Use explicit Stockfish path provided by user
+    engine = chess.engine.SimpleEngine.popen_uci(r'C:\Users\shuey\Downloads\stockfish\stockfish-windows-x86-64-avx2.exe')
+
     parser = configparser.ConfigParser()
     parser.read('default.ini')
     try:
@@ -778,7 +898,46 @@ if __name__ == '__main__':
         depth = int(parser.get('Time Control', 'depth'))
         time_control = float(parser.get('Time Control', 'time'))
         print('found the default.ini settings loaded from there')
-    except configparser.NoSectionError:
-        print('Either default.ini not found or the file has syntax error..\n using default settings\n\n playing by default depth of 12')
-    play(chess.Board(), engine, thread, ram,
-         depth, time_control, play_by_depth_bool)
+    except (configparser.NoSectionError, configparser.NoOptionError, ValueError):
+        print('Either default.ini not found or it has a syntax/option error. Using built-in defaults.')
+
+    # Apply CLI overrides
+    if args.threads is not None:
+        thread = max(1, args.threads)
+    if args.hash is not None:
+        ram = max(16, args.hash)  # basic sanity
+    if args.depth is not None:
+        depth = max(1, args.depth)
+
+    # Determine mode and time per move
+    if args.depth_mode:
+        play_by_depth_bool = True
+    else:
+        play_by_depth_bool = False
+
+    if args.tc:
+        try:
+            time_control = _parse_tc(args.tc)
+            print(f'Using classical control 40/X: per-move time = {time_control:.3f}s')
+        except ValueError as e:
+            print(f'Invalid --tc: {e}')
+            os._exit(1)
+
+    # Validate timing window
+    timing_mode = args.timing_mode
+    timing_window = None
+    if timing_mode:
+        if args.timing_min is None or args.timing_max is None:
+            print("Error: --timing-mode requires both --timing-min and --timing-max")
+            os._exit(1)
+        if args.timing_min < 0 or args.timing_max < 0:
+            print("Error: timing bounds must be non-negative")
+            os._exit(1)
+        if args.timing_min > args.timing_max:
+            print("Error: --timing-min must be ≤ --timing-max")
+            os._exit(1)
+        timing_window = (float(args.timing_min), float(args.timing_max))
+        print(f'Per-move timing enabled: mode={timing_mode}, window=[{timing_window[0]:.3f}, {timing_window[1]:.3f}]s')
+    
+    # Note: when play_by_depth_bool is False and timing_mode is None, engine will use chess.engine.Limit(time=time_control)
+    play(chess.Board(), engine, thread, ram, depth, time_control, play_by_depth_bool, timing_mode=timing_mode, timing_window=timing_window)
