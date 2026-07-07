@@ -58,3 +58,33 @@ def test_train_and_export_onnx_loads_in_cv2(tiny_dataset, tmp_path):
     net.setInput(blob)
     logits = net.forward()
     assert logits.shape == (2, 13)
+
+
+def test_eval_boards_perfect_on_fake_recognizer(tmp_path, monkeypatch):
+    """eval_boards ground-truth plumbing: with the recognizer mocked to return the
+    true grid, accuracy must be exactly 1.0."""
+    import chess
+
+    from training import evaluate as ev
+
+    class PerfectRecognizer:
+        def __init__(self, *a, **k):
+            pass
+
+        def classify_squares(self, img):
+            grid = ev.CURRENT_TRUE_GRID
+            import numpy as np
+
+            return grid, np.ones((8, 8), np.float32)
+
+    monkeypatch.setattr(ev, "Recognizer", PerfectRecognizer)
+    fake_assets = tmp_path / "assets" / "lichess" / "kosal"
+    fake_assets.mkdir(parents=True)
+    from training.fetch_assets import PIECE_CODES
+
+    for code in PIECE_CODES:
+        img = Image.new("RGBA", (64, 64), (200, 0, 0, 255))
+        img.save(fake_assets / f"{code.lower()}.png")
+    result = ev.eval_boards("unused.onnx", tmp_path / "assets", n_positions=3, seed=1)
+    assert result["per_square"] == 1.0
+    assert result["exact_boards"] == 1.0
