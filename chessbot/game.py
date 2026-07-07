@@ -6,7 +6,7 @@ import cv2
 from .capture.base import Region
 from .engine.uci import sample_timing
 from .vision import board_detect, move_detect
-from .vision.position import grid_to_board, infer_white_at_bottom, start_grid
+from .vision.position import board_to_grid, grid_to_board, infer_white_at_bottom, start_grid
 from .vision.squares import get_square_img, square_name_to_row_col
 
 
@@ -15,6 +15,8 @@ class BoardNotFound(RuntimeError):
 
 
 class GameSession:
+    RECOGNIZER_CHECK_INTERVAL = 250
+
     def __init__(
         self,
         capturer,
@@ -100,7 +102,7 @@ class GameSession:
                 continue
             result = self._await_opponent(board, old)
             if result[0] == "resync":
-                board = result[1]
+                board = self._adopt_resync(board, result[1])
                 old = self._grab_gray()
                 self.log(f"Re-synced position: {board.fen()}")
                 continue
@@ -111,6 +113,14 @@ class GameSession:
 
     def _grab_gray(self):
         return cv2.cvtColor(self.capturer.grab(self.region), cv2.COLOR_BGR2GRAY)
+
+    def _adopt_resync(self, current: chess.Board, resynced: chess.Board) -> chess.Board:
+        """A resync whose placement matches the current board is a false positive
+        (e.g. triggered by a frame glitch); keep the current board so its turn is
+        preserved instead of blindly overwriting it with the resynced one."""
+        if resynced.board_fen() == current.board_fen():
+            return current
+        return resynced
 
     def _choose_move(self, board: chess.Board, total_moves: int) -> str:
         chosen_t = sample_timing(self.timing_window) if self.timing_mode else 0.0
@@ -155,6 +165,7 @@ class GameSession:
         return self._grab_gray()
 
     def _await_opponent(self, board: chess.Board, old):
+        checks_since_recognizer = 0
         while True:
             time.sleep(0.02)
             new = self._grab_gray()
@@ -163,6 +174,14 @@ class GameSession:
             stealth = move_detect.detect_stealth_move(new, board, self.white_at_bottom)
             if stealth:
                 return ("move", stealth, new)
+            checks_since_recognizer += 1
+            if checks_since_recognizer >= self.RECOGNIZER_CHECK_INTERVAL:
+                checks_since_recognizer = 0
+                grid, confidence = self.recognizer.classify_squares(self.capturer.grab(self.region))
+                if float(confidence.min()) >= self.confidence_floor and grid != board_to_grid(
+                    board, self.white_at_bottom
+                ):
+                    return ("resync", self._resync())
         stable_misses = 0
         while True:
             time.sleep(0.02)

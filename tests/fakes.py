@@ -21,6 +21,29 @@ class FakeCapturer:
         pass
 
 
+class SequenceCapturer:
+    """Stateful capturer fake: replays a fixed sequence of frames (one per grab()
+    call), then repeats the last frame indefinitely."""
+
+    name = "fake"
+    scale = 1.0
+
+    def __init__(self, frames):
+        self._frames = list(frames)
+        self._index = 0
+
+    def grab(self, region=None):
+        frame = self._frames[min(self._index, len(self._frames) - 1)]
+        self._index += 1
+        if region is not None:
+            left, top, right, bottom = region
+            frame = frame[top:bottom, left:right]
+        return np.ascontiguousarray(frame)
+
+    def close(self):
+        pass
+
+
 class FakeRecognizer:
     def __init__(self, grid, confidence=0.99):
         self.grid = grid

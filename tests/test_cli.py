@@ -76,3 +76,15 @@ def test_play_missing_model_exits_before_engine_spawn(monkeypatch):
     assert "/nonexistent/model.onnx" in str(excinfo.value)
     assert engine_calls == []
     assert capturer_calls == []
+
+
+def test_main_reports_os_error_as_system_exit(monkeypatch):
+    def fake_cmd_play(args):
+        raise ConnectionRefusedError("connection refused to 1.2.3.4:6751")
+
+    monkeypatch.setattr(cli, "cmd_play", fake_cmd_play)
+
+    with pytest.raises(SystemExit) as excinfo:
+        main(["play"])
+
+    assert str(excinfo.value) == "connection refused to 1.2.3.4:6751"

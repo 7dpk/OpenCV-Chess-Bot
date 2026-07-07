@@ -134,7 +134,7 @@ def main(argv=None) -> None:
             cmd_play(args)
         else:
             cmd_server(args)
-    except (FileNotFoundError, ValueError) as exc:
+    except (FileNotFoundError, ValueError, RuntimeError, OSError) as exc:
         sys.exit(str(exc))
     except KeyboardInterrupt:
         sys.exit("\ninterrupted")

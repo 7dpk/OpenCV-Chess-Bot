@@ -1,10 +1,20 @@
 import chess
+import cv2
 import numpy as np
 import pytest
 
 from chessbot.game import BoardNotFound, GameSession
 from chessbot.vision.position import board_to_grid, start_grid
-from fakes import FakeBook, FakeCapturer, FakeEngine, FakeMouse, FakeRecognizer, SequenceRecognizer
+from fakes import (
+    FakeBook,
+    FakeCapturer,
+    FakeEngine,
+    FakeMouse,
+    FakeRecognizer,
+    SequenceCapturer,
+    SequenceRecognizer,
+)
+from helpers import occupied_squares, render_fake_board
 
 
 def make_session(grid, turn_arg=None, confidence=0.99, confirm=None, engine=None):
@@ -136,3 +146,69 @@ def test_await_opponent_rejects_ambiguous_candidates(monkeypatch):
     old = np.full((512, 512), 50, np.uint8)
     result = session._await_opponent(chess.Board(), old)
     assert result[0] == "resync"
+
+
+# --- FIX 1 (I1): resync must not blindly adopt turn when placement is unchanged ---
+
+
+def test_adopt_resync_keeps_current_board_when_placement_matches():
+    session, _ = make_session(start_grid(True))
+    current = chess.Board()  # turn == WHITE
+    resynced = chess.Board()
+    resynced.turn = chess.BLACK  # same placement, but a false-positive flipped turn
+    result = session._adopt_resync(current, resynced)
+    assert result is current
+    assert result.turn == chess.WHITE
+
+
+def test_adopt_resync_uses_resynced_board_when_placement_differs():
+    session, _ = make_session(start_grid(True))
+    current = chess.Board()
+    resynced = chess.Board()
+    resynced.push(chess.Move.from_uci("e2e4"))
+    result = session._adopt_resync(current, resynced)
+    assert result is resynced
+    assert result.board_fen() == resynced.board_fen()
+
+
+# --- FIX 2 (I3): periodic recognizer check during the first _await_opponent loop ---
+
+
+def test_await_opponent_periodic_recognizer_check_detects_drift(monkeypatch):
+    monkeypatch.setattr("chessbot.game.time.sleep", lambda *_: None)
+    board = chess.Board()
+    start_frame = cv2.cvtColor(render_fake_board(occupied_squares(board)), cv2.COLOR_GRAY2BGR)
+
+    drifted = chess.Board()
+    drifted.push(chess.Move.from_uci("e2e4"))
+
+    session, _ = make_session(start_grid(True))
+    session.RECOGNIZER_CHECK_INTERVAL = 3
+    session.capturer = FakeCapturer(start_frame)
+    session.recognizer = FakeRecognizer(board_to_grid(drifted, True), 0.99)
+
+    old = cv2.cvtColor(start_frame, cv2.COLOR_BGR2GRAY)
+    result = session._await_opponent(board, old)
+    assert result[0] == "resync"
+
+
+def test_await_opponent_periodic_recognizer_check_matching_grid_no_spurious_resync(monkeypatch):
+    monkeypatch.setattr("chessbot.game.time.sleep", lambda *_: None)
+    board = chess.Board()
+    start_frame = cv2.cvtColor(render_fake_board(occupied_squares(board)), cv2.COLOR_GRAY2BGR)
+
+    after = chess.Board()
+    after.push_uci("e2e4")
+    after_frame = cv2.cvtColor(render_fake_board(occupied_squares(after)), cv2.COLOR_GRAY2BGR)
+
+    session, _ = make_session(start_grid(True))
+    session.RECOGNIZER_CHECK_INTERVAL = 3
+    # Enough static frames for a couple of periodic checks (grid matches, so no
+    # resync fires) before the frame changes to reflect a real move.
+    session.capturer = SequenceCapturer([start_frame] * 5 + [after_frame] * 2)
+    session.recognizer = FakeRecognizer(start_grid(True), 0.99)
+
+    old = cv2.cvtColor(start_frame, cv2.COLOR_BGR2GRAY)
+    result = session._await_opponent(board, old)
+    assert result[0] == "move"
+    assert result[1] == "e2e4"
