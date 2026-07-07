@@ -45,11 +45,12 @@ def _nonmax_suppress_1d(arr, winsize=5):
 
 
 def _trim_sequence(seq, vals):
-    while len(seq) > 9:
-        if vals[0] > vals[-1]:
-            seq, vals = seq[:-1], vals[:-1]
-        else:
-            seq, vals = seq[1:], vals[1:]
+    if len(seq) > 9:
+        while len(seq) > 7:
+            if vals[0] > vals[-1]:
+                seq, vals = seq[:-1], vals[:-1]
+            else:
+                seq, vals = seq[1:], vals[1:]
     return seq, vals
 
 
