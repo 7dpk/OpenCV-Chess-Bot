@@ -43,14 +43,14 @@ Thumbs.db
 captures/
 dataset/
 
- # Common ML model files
- *.pt
- *.pth
- *.torchscript.pt
- *.ckpt
- *.h5
- *.tflite
- *.pb
+# Common ML model files
+*.pt
+*.pth
+*.torchscript.pt
+*.ckpt
+*.h5
+*.tflite
+*.pb
 
 # Common training run directories
 runs/
