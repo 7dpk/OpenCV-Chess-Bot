@@ -11,7 +11,7 @@ https://user-images.githubusercontent.com/78639550/225330750-d877a4cf-8dda-4dcf-
 
 1. **Board detection** — a gradient/Hough sweep over a screenshot finds the
    8×8 grid (`chessbot/vision/board_detect.py`).
-2. **Piece recognition** — each square is classified by a ~55K-parameter CNN
+2. **Piece recognition** — each square is classified by a ~95K-parameter CNN
    (13 classes: 6 pieces × 2 colors + empty) exported to ONNX and run with
    OpenCV's DNN module. No ML framework needed at runtime
    (`chessbot/vision/recognizer.py`). This is how the bot can join a game
@@ -97,9 +97,12 @@ python -m training.evaluate            # held-out-theme accuracy gate (99.5%)
 ```
 
 Training data is 100% synthetic: piece sets rendered over board themes with
-scale/offset jitter, move highlights, blur, and JPEG artifacts. Validation
-uses piece sets held out from training, so the reported accuracy reflects
-unseen themes.
+scale/offset jitter, move highlights, board-misalignment bleed, legal-move
+markers, mouse cursors, blur, and JPEG artifacts. Validation uses piece sets
+held out from training, so the reported accuracy reflects unseen themes; the
+evaluation gate also requires ≥90% of boards to clear the 0.90 confidence
+floor under those screen artifacts. The full story — with pictures — is in
+[`docs/piece_recognition_walkthrough.ipynb`](docs/piece_recognition_walkthrough.ipynb).
 
 ## Development
 
