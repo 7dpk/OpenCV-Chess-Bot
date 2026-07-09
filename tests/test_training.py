@@ -60,6 +60,41 @@ def test_train_and_export_onnx_loads_in_cv2(tiny_dataset, tmp_path):
     assert logits.shape == (2, 13)
 
 
+def test_train_resumes_from_checkpoint(tiny_dataset, tmp_path):
+    ckpt = tmp_path / "train.ckpt"
+    train_model(tiny_dataset, epochs=1, batch_size=8, device="cpu", ckpt_path=ckpt)
+    assert ckpt.exists()
+    # resuming with a larger epoch budget continues rather than restarting
+    model, acc = train_model(tiny_dataset, epochs=2, batch_size=8, device="cpu", ckpt_path=ckpt)
+    saved = torch.load(ckpt, weights_only=False)
+    assert saved["epoch"] == 2
+    assert 0.0 <= acc <= 1.0
+
+
+def test_shift_crop_preserves_shape_and_shifts():
+    from training.evaluate import _shift_crop
+
+    img = np.zeros((256, 256, 3), np.uint8)
+    img[0, 0] = 255
+    out = _shift_crop(img, 3, -2)
+    assert out.shape == img.shape
+    assert not np.array_equal(out, img)
+    assert np.array_equal(_shift_crop(img, 0, 0), img)
+
+
+def test_apply_screen_artifacts_keeps_shape_and_is_deterministic():
+    from chessbot.vision.position import start_grid
+    from training.evaluate import apply_screen_artifacts
+
+    img = np.full((256, 256, 3), 120, np.uint8)
+    grid = start_grid(True)
+    a = apply_screen_artifacts(img.copy(), grid, 32, random.Random(3))
+    b = apply_screen_artifacts(img.copy(), grid, 32, random.Random(3))
+    assert a.shape == img.shape
+    assert not np.array_equal(a, img)
+    assert np.array_equal(a, b)
+
+
 def test_eval_boards_perfect_on_fake_recognizer(tmp_path, monkeypatch):
     """eval_boards ground-truth plumbing: with the recognizer mocked to return the
     true grid, accuracy must be exactly 1.0."""

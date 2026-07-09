@@ -35,8 +35,8 @@ class PieceNet(nn.Module):
         def block(cin, cout):
             return [nn.Conv2d(cin, cout, 3, padding=1), nn.BatchNorm2d(cout), nn.ReLU(), nn.MaxPool2d(2)]
 
-        self.features = nn.Sequential(*block(3, 24), *block(24, 48), *block(48, 96), nn.AdaptiveAvgPool2d(1))
-        self.classifier = nn.Linear(96, n_classes)
+        self.features = nn.Sequential(*block(3, 32), *block(32, 64), *block(64, 128), nn.AdaptiveAvgPool2d(1))
+        self.classifier = nn.Linear(128, n_classes)
 
     def forward(self, x):
         return self.classifier(self.features(x).flatten(1))
@@ -64,28 +64,57 @@ def _pick_device(name: str) -> str:
 
 
 def train_model(data_root: Path, epochs: int = 12, batch_size: int = 256, lr: float = 1e-3,
-                 device: str = "auto"):
+                 device: str = "auto", export_path: Path | None = None,
+                 ckpt_path: Path | None = None):
     device = _pick_device(device)
     train_loader = DataLoader(SquaresDataset(Path(data_root) / "train"), batch_size=batch_size,
                                shuffle=True, num_workers=2)
     val_loader = DataLoader(SquaresDataset(Path(data_root) / "val"), batch_size=batch_size, num_workers=2)
     model = PieceNet().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        optimizer, milestones=[int(epochs * 0.6), int(epochs * 0.85)], gamma=0.3
+    )
     loss_fn = nn.CrossEntropyLoss()
-    best_acc, best_state = 0.0, None
-    for epoch in range(epochs):
+    best_acc, best_state, start_epoch = 0.0, None, 0
+    if ckpt_path is not None and Path(ckpt_path).exists():
+        ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+        model.load_state_dict(ckpt["model"])
+        model.to(device)
+        optimizer.load_state_dict(ckpt["optimizer"])
+        scheduler.load_state_dict(ckpt["scheduler"])
+        start_epoch, best_acc, best_state = ckpt["epoch"], ckpt["best_acc"], ckpt["best_state"]
+        print(f"resuming at epoch {start_epoch + 1}/{epochs} (best so far {best_acc:.4%})", flush=True)
+    for epoch in range(start_epoch, epochs):
         model.train()
         for x, y in train_loader:
             optimizer.zero_grad()
             loss = loss_fn(model(x.to(device)), y.to(device))
             loss.backward()
             optimizer.step()
+        scheduler.step()
         acc = _accuracy(model, val_loader, device)
-        print(f"epoch {epoch + 1}/{epochs}: val acc {acc:.4%}")
+        print(f"epoch {epoch + 1}/{epochs}: val acc {acc:.4%}", flush=True)
         if acc >= best_acc:
             best_acc = acc
             best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
-    model.load_state_dict(best_state)
+            if export_path is not None:
+                # export on every improvement so an interrupted run still leaves
+                # the best model on disk
+                snapshot = PieceNet()
+                snapshot.load_state_dict(best_state)
+                export_onnx(snapshot, export_path)
+        if ckpt_path is not None:
+            torch.save({
+                "model": {k: v.cpu() for k, v in model.state_dict().items()},
+                "optimizer": optimizer.state_dict(),
+                "scheduler": scheduler.state_dict(),
+                "epoch": epoch + 1,
+                "best_acc": best_acc,
+                "best_state": best_state,
+            }, ckpt_path)
+    if best_state is not None:
+        model.load_state_dict(best_state)
     return model.cpu(), best_acc
 
 
@@ -112,8 +141,10 @@ def main() -> None:
     parser.add_argument("--batch", type=int, default=256)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--device", default="auto")
+    parser.add_argument("--ckpt", type=Path, help="checkpoint file for resumable training")
     args = parser.parse_args()
-    model, acc = train_model(args.data, args.epochs, args.batch, args.lr, args.device)
+    model, acc = train_model(args.data, args.epochs, args.batch, args.lr, args.device,
+                             export_path=args.out, ckpt_path=args.ckpt)
     export_onnx(model, args.out)
     print(f"exported {args.out} (best val acc {acc:.4%})")
 
