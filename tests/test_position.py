@@ -7,8 +7,16 @@ from chessbot.vision.position import (
     grid_to_board,
     infer_white_at_bottom,
     label_to_piece,
+    screen_to_square_name,
     start_grid,
 )
+
+
+def test_screen_to_square_name():
+    assert screen_to_square_name(0, 0, True) == "a8"
+    assert screen_to_square_name(7, 4, True) == "e1"
+    assert screen_to_square_name(0, 0, False) == "h1"
+    assert screen_to_square_name(7, 7, False) == "a8"
 
 
 def test_classes_order():

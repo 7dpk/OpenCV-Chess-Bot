@@ -6,7 +6,13 @@ import cv2
 from .capture.base import Region
 from .engine.uci import sample_timing
 from .vision import board_detect, move_detect
-from .vision.position import board_to_grid, grid_to_board, infer_white_at_bottom, start_grid
+from .vision.position import (
+    board_to_grid,
+    grid_to_board,
+    infer_white_at_bottom,
+    screen_to_square_name,
+    start_grid,
+)
 from .vision.squares import get_square_img, square_name_to_row_col
 
 
@@ -76,7 +82,18 @@ class GameSession:
             turn = chess.WHITE if answer.startswith("w") else chess.BLACK
         board = grid_to_board(grid, white_at_bottom, turn)
         if float(confidence.min()) < self.confidence_floor:
-            self.log(f"Low recognition confidence ({confidence.min():.2f}). Detected position:")
+            flagged = sorted(
+                (
+                    (float(confidence[row, col]), screen_to_square_name(row, col, white_at_bottom))
+                    for row in range(8)
+                    for col in range(8)
+                    if float(confidence[row, col]) < self.confidence_floor
+                ),
+            )
+            worst = ", ".join(f"{name}={conf:.2f}" for conf, name in flagged[:5])
+            self.log(
+                f"Low recognition confidence on {len(flagged)} square(s) ({worst}). Detected position:"
+            )
             self.log(board.fen())
             answer = self.confirm("Continue with this position? [Y/n]: ")
             if answer.strip().lower().startswith("n"):
@@ -196,17 +213,35 @@ class GameSession:
             if stable_misses > 40:
                 return ("resync", self._resync())
 
+    RESYNC_SOFT_FLOOR = 0.80
+
     def _resync(self, attempts: int = 30, wait: float = 0.5) -> chess.Board:
         our_color = chess.WHITE if self.white_at_bottom else chess.BLACK
+        best: tuple[float, chess.Board] | None = None
         for _ in range(attempts):
             img = self.capturer.grab(self.region)
             grid, confidence = self.recognizer.classify_squares(img)
-            if float(confidence.min()) < self.confidence_floor:
-                self.log(f"Re-sync attempt failed: confidence {confidence.min():.2f} below floor")
-            else:
+            min_conf = float(confidence.min())
+            if min_conf >= self.confidence_floor:
                 try:
                     return grid_to_board(grid, self.white_at_bottom, our_color)
                 except ValueError as exc:
                     self.log(f"Re-sync attempt failed: {exc}")
+            else:
+                self.log(f"Re-sync attempt failed: confidence {min_conf:.2f} below floor")
+                if min_conf >= self.RESYNC_SOFT_FLOOR and (best is None or min_conf > best[0]):
+                    try:
+                        best = (min_conf, grid_to_board(grid, self.white_at_bottom, our_color))
+                    except ValueError:
+                        pass
             time.sleep(wait)
+        if best is not None:
+            # a persistent single low-confidence square (tiny board, unusual piece
+            # style) should not kill the game: a legal read above the soft floor
+            # beats crashing
+            self.log(
+                f"Re-sync: adopting best-effort read at confidence {best[0]:.2f} "
+                f"(floor {self.confidence_floor})"
+            )
+            return best[1]
         raise RuntimeError("could not re-sync position from screen")

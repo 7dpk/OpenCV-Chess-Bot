@@ -76,6 +76,16 @@ def test_read_position_low_confidence_asks_confirmation():
     assert any("Continue" in p for p in prompts)
 
 
+def test_read_position_low_confidence_names_squares():
+    session, _ = make_session(start_grid(True), confidence=0.5, confirm="y")
+    logs = []
+    session.log = lambda *a: logs.append(" ".join(str(x) for x in a))
+    session.read_position()
+    text = "\n".join(logs)
+    assert "64 square" in text
+    assert "a1=0.50" in text
+
+
 def test_read_position_low_confidence_abort():
     session, _ = make_session(start_grid(True), confidence=0.5, confirm="n")
     with pytest.raises(SystemExit):
@@ -133,6 +143,24 @@ def test_resync_raises_after_exhausting_attempts(monkeypatch):
     session.recognizer = SequenceRecognizer([(_grid_missing_white_king(), 0.99)])
     with pytest.raises(RuntimeError):
         session._resync()
+
+
+def test_resync_adopts_best_effort_read_above_soft_floor(monkeypatch):
+    """A persistent single low-confidence square must not kill the game: after
+    exhausting attempts, a valid read above the soft floor is adopted."""
+    monkeypatch.setattr("chessbot.game.time.sleep", lambda *_: None)
+    session, _ = make_session(start_grid(True))
+    session.recognizer = SequenceRecognizer([(start_grid(True), 0.85)])
+    board = session._resync(attempts=3)
+    assert board.board_fen() == chess.Board().board_fen()
+
+
+def test_resync_never_adopts_below_soft_floor(monkeypatch):
+    monkeypatch.setattr("chessbot.game.time.sleep", lambda *_: None)
+    session, _ = make_session(start_grid(True))
+    session.recognizer = SequenceRecognizer([(start_grid(True), 0.5)])
+    with pytest.raises(RuntimeError):
+        session._resync(attempts=3)
 
 
 def test_await_opponent_rejects_ambiguous_candidates(monkeypatch):

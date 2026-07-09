@@ -23,6 +23,10 @@ def _screen_to_square(row: int, col: int, white_at_bottom: bool) -> int:
     return chess.square(7 - col, row)
 
 
+def screen_to_square_name(row: int, col: int, white_at_bottom: bool) -> str:
+    return chess.square_name(_screen_to_square(row, col, white_at_bottom))
+
+
 def infer_white_at_bottom(grid: list[list[str]]) -> bool:
     score = 0
     for row in range(8):
