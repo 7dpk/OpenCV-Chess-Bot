@@ -64,3 +64,6 @@ outputs/
 # Downloaded training assets and generated datasets
 training/assets/
 training/dataset/
+
+superpowers
+.superpowers
