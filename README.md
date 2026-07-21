@@ -7,6 +7,10 @@ looks like a 2D board.
 
 https://user-images.githubusercontent.com/78639550/225330750-d877a4cf-8dda-4dcf-9b6c-3c035333fe6a.mp4
 
+> **New here?** The illustrated Jupyter walkthrough
+> [`docs/piece_recognition_walkthrough.ipynb`](docs/piece_recognition_walkthrough.ipynb)
+> builds the piece recognizer step by step, with pictures — and runs in Colab.
+
 ## How it works
 
 1. **Board detection** — a gradient/Hough sweep over a screenshot finds the
@@ -32,16 +36,37 @@ on Windows (sub-millisecond), **mss** (CoreGraphics) on macOS and Linux.
 
 ```bash
 git clone https://github.com/7dpk/OpenCV-Chess-Bot && cd OpenCV-Chess-Bot
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -e .
-pip install -e ".[windows]"    # Windows: adds dxcam
 ```
 
-Install a UCI engine, e.g. Stockfish: `brew install stockfish` (macOS),
-`winget install Stockfish.Stockfish` (Windows), or pass `--engine /path/to/engine`.
+### macOS
 
-macOS: grant your terminal **Screen Recording** and **Accessibility**
-permissions (System Settings → Privacy & Security).
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+brew install stockfish
+```
+
+Grant your terminal **Screen Recording** and **Accessibility** permissions
+(System Settings → Privacy & Security) so the bot can see the board and click.
+
+### Windows
+
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
+pip install -e ".[windows]"        # adds dxcam for fast capture
+winget install Stockfish.Stockfish
+```
+
+### Linux
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e .
+sudo apt install stockfish         # or your distro's package
+```
+
+Any UCI engine works — pass `--engine /path/to/engine` if it isn't on PATH.
 
 ## Play
 
